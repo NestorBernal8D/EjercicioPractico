@@ -1,0 +1,182 @@
+﻿@page "/MainView"
+
+@using System.IO
+@using BlazorInputFile
+@using EjercicioPractico.Models
+@using System.Globalization
+@inject EjercicioPractico.Services.ProjServices services
+
+
+<div class="container h-100">
+    <div class="row justify-content-end text-right">
+        <div class="col-4">
+        </div>
+        <div class="col-4">
+            <div class="col align-self-center text-center">
+                <label for="upload" class="btn-sm btn-upload">
+                    <i class="oi oi-cloud-upload"></i> Cargar archivo
+                </label>
+                <InputFile id="upload" class="btn-sm btn-upload d-block" style="visibility: hidden;" OnChange="HandleFile" multiple />
+            </div>
+        </div>
+        <div class="col-4">
+            Hermosillo Son.
+            <div class="">@Weather.main.tempc.ToString("n0")° C</div>
+            <div class="">@Weather.main.tempminc.ToString("n0")° | @Weather.main.temp_maxc.ToString("n0")°</div>
+            <div class=""><span _ngcontent-app-root-c220="">@Weather.main.humidity.ToString("n0")%</span></div>
+        </div>
+    </div>
+    @if (InfoView)
+    {
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h4 class="card-title titulo">Main</h4>
+                    </div>
+                    <div class="card-content">
+                        <div class="card-body pt-0">
+                            <div class="row col-12">
+                                <div class="form-row">
+                                    <div class="my-3 mx-4">
+                                        <p>Buscar: <input @oninput="Search" type="text" name="Buscar" /></p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row col-12">
+                                <div class="col-12">
+                                    <p>Alumno con mejor calificación: @model.BestGrade</p>
+                                </div>
+                                <div class="col-12">
+                                    <p>Alumno con peor calificación: @model.WorstGrade</p>
+                                </div>
+                                <div class="col-12">
+                                    <p>Alumno con mejor calificación: @model.Average</p>
+                                </div>
+                            </div>
+                            <div class="table-responsive">
+                                <div class="col col-xs-12 col-sm-12">
+                                    <RadzenGrid Data="@CalificacionesList" TItem="Calificaciones" @ref="grid" AllowFiltering="false" FilterCaseSensitivity="FilterCaseSensitivity.CaseInsensitive" EditMode="DataGridEditMode.Multiple"
+                                                AllowSorting="true" AllowPaging="true" PageSize="20" CellRender="@CellRender">
+                                        <Columns>
+                                            <RadzenGridColumn TItem="Calificaciones" Property="Nombres" Title="Nombres" Width="70px" />
+                                            <RadzenGridColumn TItem="Calificaciones" Property="ApellidosPaterno" Title="Apellido Paterno" Width="80px" />
+                                            <RadzenGridColumn TItem="Calificaciones" Property="ApellidoMaterno" Title="Apellido Materno" Width="60px" />
+                                            <RadzenGridColumn TItem="Calificaciones" Property="FechaNacimiento" Title="Fecha de Nacimiento" Width="40px" />
+                                            <RadzenGridColumn TItem="Calificaciones" Property="Grado" Title="Grado" Width="40px" />
+                                            <RadzenGridColumn TItem="Calificaciones" Property="Grupo" Title="Grupo" Width="50px" />
+                                            <RadzenGridColumn TItem="Calificaciones" Property="Calificacion" Title="calificación" Width="50px" />
+                                            <RadzenGridColumn TItem="Calificaciones" Property="ClaveAux" Title="Clave" Width="50px" />
+                                            <RadzenGridColumn TItem="Calificaciones" Property="Positions" Title="posiciones a mover" Width="50px">
+                                                <Template Context="reg">
+                                                    <RadzenNumeric TValue="int" Min="0" @bind-Value="reg.Positions" Style="width:100%" Change=@(() => Leftrotate(reg)) />
+                                                </Template>
+                                            </RadzenGridColumn>
+                                        </Columns>
+                                    </RadzenGrid>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-12 my-5">
+                                    <RadzenChart>
+                                        <RadzenBarSeries Data="@model.Grafica" CategoryProperty="Alumno" Title="Alumnos" LineType="LineType.Dashed" ValueProperty="Calificacion" />
+                                        <RadzenValueAxis Formatter="@FormatAsUSD">
+                                            <RadzenGridLines Visible="true" />
+                                            <RadzenAxisTitle Text="Calificación" />
+                                        </RadzenValueAxis>
+                                        <RadzenBarOptions Radius="5" />
+                                    </RadzenChart>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    }
+</div>
+
+    @code {
+
+        MainViewModel model = new MainViewModel();
+        List<Calificaciones> CalificacionesList = new List<Calificaciones>();
+        bool InfoView = false;
+        RadzenGrid<Calificaciones> grid;
+        Root Weather = new Root {main = new Main()};
+
+        protected override async Task OnAfterRenderAsync(bool firstRender)
+        {
+            if (firstRender)
+            {
+                Weather = services.GetWeather();
+
+                await InvokeAsync(StateHasChanged);
+
+            }
+            InfoView = true;
+
+        }
+
+        string FormatAsUSD(object value)
+        {
+            return ((double)value).ToString();
+        }
+
+        async Task HandleFile(IFileListEntry[] files)
+        {
+            foreach (var file in files)
+            {
+                if (file == null)
+                {
+                    return;
+                }
+
+                try
+                {
+                    var ms = new MemoryStream();
+                    await file.Data.CopyToAsync(ms);
+                    ms.Seek(0, SeekOrigin.Begin);
+
+                    model = await services.GetFileData(ms);
+                    CalificacionesList.AddRange(model.Calificaciones);
+
+
+                    await InvokeAsync(() => StateHasChanged());
+                }
+                catch (Exception ex)
+                {
+                }
+            }
+        }
+
+        public void CellRender(CellRenderEventArgs<Calificaciones> args)
+        {
+            if ($"{args.Data.Nombres} {args.Data.ApellidosPaterno} {args.Data.ApellidoMaterno}" == model.WorstGrade)
+            {
+                args.Attributes.Add("style", $"background-color: #ef233c50; font-weight: bold;");
+            }
+            else if ($"{args.Data.Nombres} {args.Data.ApellidosPaterno} {args.Data.ApellidoMaterno}" == model.BestGrade)
+            {
+                args.Attributes.Add("style", $"background-color: #4cef2350; font-weight: bold;");
+            }
+        }
+
+        public void Search(ChangeEventArgs e)
+        {
+            var query = e.Value.ToString();
+
+            grid.FirstPage();
+            CalificacionesList = model.Calificaciones
+            .Where(x => x.Nombres.Contains(query) || x.ApellidosPaterno.Contains(query)
+                || x.ApellidoMaterno.Contains(query) || x.FechaNacimiento.Contains(query)
+                || x.Grado.Contains(query) || x.Grupo.Contains(query)
+                || x.Calificacion.ToString().Contains(query) || x.Clave.Contains(query)).ToList();
+
+        }
+
+        public void Leftrotate(Calificaciones cal)
+        {
+            cal.ClaveAux = new string(Enumerable.Range(0, cal.Clave.Length).Select(i => (cal.Clave[(i + cal.Positions) % cal.Clave.Length])).ToArray());
+        }
+    }
